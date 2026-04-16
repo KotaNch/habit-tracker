@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Habits</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: Inter, Arial, sans-serif;
+    }
+
+    body {
+      background: #0f1115;
+      color: #e5e7eb;
+      min-height: 100vh;
+      padding: 32px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+    }
+
+    .add-form {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .add-input {
+      background: #171a21;
+      color: #e5e7eb;
+      border: 1px solid #262b36;
+      border-radius: 12px;
+      padding: 12px 14px;
+      outline: none;
+      min-width: 220px;
+    }
+
+    .add-button {
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 12px 18px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .add-button:hover {
+      background: #16a34a;
+    }
+
+    .habit-list {
+      display: grid;
+      gap: 16px;
+    }
+
+    .habit-card {
+      background: #171a21;
+      border: 1px solid #262b36;
+      border-radius: 16px;
+      padding: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .habit-info {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .habit-name {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .streak {
+      font-size: 14px;
+      color: #9ca3af;
+    }
+
+    .open-button {
+      display: inline-block;
+      text-decoration: none;
+      background: transparent;
+      color: #e5e7eb;
+      border: 1px solid #374151;
+      padding: 10px 16px;
+      border-radius: 10px;
+    }
+
+    .open-button:hover {
+      background: #232834;
+    }
+
+    @media (max-width: 600px) {
+      .header,
+      .habit-card {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .open-button,
+      .add-button {
+        width: 100%;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>My Habits</h1>
+
+      <form class="add-form" action="/habit/create" method="post">
+        <input class="add-input" name="name" placeholder="New habit name" />
+        <button class="add-button" type="submit">Add habit</button>
+      </form>
+    </div>
+
+    <div class="habit-list">
+      {{range .Habits}}
+      <div class="habit-card">
+        <div class="habit-info">
+          <div class="habit-name">{{.Name}}</div>
+          <div class="streak">Current streak: {{.Streak}} days</div>
+        </div>
+        <a class="open-button" href="/habit?id={{.ID}}">Open</a>
+      </div>
+      {{end}}
+    </div>
+  </div>
+</body>
+</html>
