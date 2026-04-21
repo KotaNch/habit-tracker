@@ -5,141 +5,100 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Habit</title>
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: Inter, Arial, sans-serif;
-    }
-
-    body {
-      background: #0f1115;
-      color: #e5e7eb;
-      min-height: 100vh;
-      padding: 32px;
-    }
-
-    .container {
-      max-width: 1100px;
-      margin: 0 auto;
-    }
-
-    .topbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 24px;
-      flex-wrap: wrap;
-    }
-
-    .back-btn,
-    .mark-btn {
-      border: 0;
-      border-radius: 12px;
-      padding: 12px 18px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    .back-btn {
-      background: #232834;
-      color: #e5e7eb;
-      text-decoration: none;
-      display: inline-block;
-    }
-
-    .mark-btn {
-      background: #22c55e;
-      color: #fff;
-    }
-
-    .mark-btn:hover {
-      background: #16a34a;
-    }
-
-    .habit-title {
-      font-size: 34px;
-      font-weight: 800;
-      margin-bottom: 8px;
-    }
-
-    .streak {
-      color: #9ca3af;
-      font-size: 15px;
-    }
-
-    .panel {
-      margin-top: 28px;
-      background: #171a21;
-      border: 1px solid #262b36;
-      border-radius: 18px;
-      padding: 20px;
-      overflow-x: auto;
-    }
-
-    .heatmap {
-      display: grid;
-      grid-auto-flow: column;
-      grid-template-rows: repeat(7, 14px);
-      grid-auto-columns: 14px;
-      gap: 4px;
-      width: max-content;
-    }
-
-    .cell {
-      width: 14px;
-      height: 14px;
-      border-radius: 3px;
-      background: #2a2f3a;
-    }
-
-    .cell.done {
-      background: #22c55e;
-    }
-
-    .legend {
-      margin-top: 16px;
-      color: #9ca3af;
-      font-size: 13px;
-    }
-
-    @media (max-width: 600px) {
-      body {
-        padding: 16px;
-      }
-
-      .habit-title {
-        font-size: 28px;
-      }
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Inter, Arial, sans-serif; }
+    body { background: #0f1115; color: #e5e7eb; min-height: 100vh; padding: 32px; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+    .back-btn, .mark-btn, .delete-btn { border: 0; border-radius: 12px; padding: 12px 18px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .back-btn { background: #232834; color: #e5e7eb; text-decoration: none; display: inline-block; }
+    .mark-btn { background: #22c55e; color: #fff; }
+    .mark-btn:hover { background: #16a34a; }
+    .delete-btn { background: #dc2626; color: white; }
+    .delete-btn:hover { background: #b91c1c; }
+    .habit-title { font-size: 34px; font-weight: 800; margin-bottom: 8px; }
+    .streak { color: #9ca3af; font-size: 15px; }
+    .panel { margin-top: 28px; background: #171a21; border: 1px solid #262b36; border-radius: 18px; padding: 20px; overflow-x: auto; }
+    .heatmap { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 14px); gap: 4px; width: max-content; }
+    .cell { width: 14px; height: 14px; border-radius: 3px; background: #2a2f3a; cursor: pointer; transition: background 0.1s; }
+    .cell.done { background: #22c55e; }
+    .cell:hover { filter: brightness(1.2); }
+    .legend { margin-top: 16px; color: #9ca3af; font-size: 13px; }
+    @media (max-width: 600px) { body { padding: 16px; } .habit-title { font-size: 28px; } }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="topbar">
       <a class="back-btn" href="/">Back</a>
-
-      <form action="/habit/toggle?id={{.Habit.ID}}" method="post">
-        <button class="mark-btn" type="submit">Mark today</button>
-      </form>
+      <div style="display: flex; gap: 12px;">
+        <button class="mark-btn" id="mark-today-btn">Mark today</button>
+        <form action="/habit/delete?id={{.Habit.ID}}" method="post" onsubmit="return confirm('Delete habit {{.Habit.Name}}? All progress will be lost.');">
+          <button class="delete-btn" type="submit">Delete habit</button>
+        </form>
+      </div>
     </div>
 
     <h1 class="habit-title">{{.Habit.Name}}</h1>
-    <div class="streak">Current streak: {{.Habit.Streak}} days</div>
+    <div class="streak" id="streak-text">Current streak: {{.Habit.Streak}} days</div>
 
     <div class="panel">
-      <div class="heatmap">
+      <div class="heatmap" id="heatmap">
         {{range .Days}}
-          <div class="cell {{if .Done}}done{{end}}" title="{{.Date}}"></div>
+          <div class="cell {{if .Done}}done{{end}}" data-date="{{.Date}}" title="{{.Date}}"></div>
         {{end}}
       </div>
-
-      <div class="legend">
-        Green = done. Gray = not done. Сейчас меняется только сегодняшний день.
-      </div>
+      <div class="legend">Кликните на любой день, чтобы отметить/снять отметку.</div>
     </div>
   </div>
+
+  <script>
+    const habitId = {{.Habit.ID}};
+    const streakSpan = document.getElementById('streak-text');
+    const cells = document.querySelectorAll('.cell');
+
+    async function toggleDay(date, cellElement) {
+      try {
+        const formData = new URLSearchParams();
+        formData.append('date', date);
+        const response = await fetch(`/habit/toggle?id=${habitId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formData
+        });
+        if (!response.ok) throw new Error('Server error');
+        const data = await response.json();
+        if (data.success) {
+          if (data.done) {
+            cellElement.classList.add('done');
+          } else {
+            cellElement.classList.remove('done');
+          }
+          streakSpan.textContent = `Current streak: ${data.streak} days`;
+        } else {
+          alert('Failed to update');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Error toggling habit');
+      }
+    }
+
+    cells.forEach(cell => {
+      cell.addEventListener('click', (e) => {
+        const date = cell.getAttribute('data-date');
+        toggleDay(date, cell);
+      });
+    });
+
+    const todayBtn = document.getElementById('mark-today-btn');
+    if (todayBtn) {
+      todayBtn.addEventListener('click', () => {
+        const today = new Date().toISOString().slice(0,10);
+        const todayCell = Array.from(cells).find(cell => cell.getAttribute('data-date') === today);
+        if (todayCell) toggleDay(today, todayCell);
+        else alert('Сегодняшний день не найден в тепловой карте');
+      });
+    }
+  </script>
 </body>
 </html>

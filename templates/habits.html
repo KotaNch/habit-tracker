@@ -115,6 +115,20 @@
       background: #232834;
     }
 
+    .delete-button {
+      background: #dc2626;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .delete-button:hover {
+      background: #b91c1c;
+    }
+
     @media (max-width: 600px) {
       .header,
       .habit-card {
@@ -123,7 +137,8 @@
       }
 
       .open-button,
-      .add-button {
+      .add-button,
+      .delete-button {
         width: 100%;
         text-align: center;
       }
@@ -136,7 +151,7 @@
       <h1>My Habits</h1>
 
       <form class="add-form" action="/habit/create" method="post">
-        <input class="add-input" name="name" placeholder="New habit name" />
+        <input class="add-input" name="name" placeholder="New habit name" required />
         <button class="add-button" type="submit">Add habit</button>
       </form>
     </div>
@@ -148,7 +163,12 @@
           <div class="habit-name">{{.Name}}</div>
           <div class="streak">Current streak: {{.Streak}} days</div>
         </div>
-        <a class="open-button" href="/habit?id={{.ID}}">Open</a>
+        <div style="display: flex; gap: 8px;">
+          <a class="open-button" href="/habit?id={{.ID}}">Open</a>
+          <form action="/habit/delete?id={{.ID}}" method="post" onsubmit="return confirm('Delete habit {{.Name}}? All progress will be lost.');">
+            <button class="delete-button" type="submit">Delete</button>
+          </form>
+        </div>
       </div>
       {{end}}
     </div>
