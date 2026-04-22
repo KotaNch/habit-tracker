@@ -143,6 +143,36 @@
         text-align: center;
       }
     }
+    @keyframes cardGlow{
+      0% {box-shadow: 0 0 0 0 rgba(34,197,94,0);}
+      50% {box-shadow: 0 0 0 4px rgba(34,197,94,0.4);}
+      100% {box-shadow: 0 0 0 0 rgba(34,197,94,0);}
+    }
+
+    .habit-card{
+      transition: transform 0.1s ease, box-shadow 0.2s;
+    }
+
+    .habit-card:hover{
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+    }
+    .habit-streak{
+      display: inline-flex;
+      align-items: center;
+      gap:6px;
+      background: #1e1f25;
+      padding: 4px 12px;
+      border-radius: 30px;
+      font-size: 13px;
+    }
+
+    .streak-fire{
+      animation: flane ls infinite;
+    }
+    .mark-btn:active {
+    transform: scale(0.96);
+    }
   </style>
 </head>
 <body>
@@ -154,6 +184,9 @@
         <input class="add-input" name="name" placeholder="New habit name" required />
         <button class="add-button" type="submit">Add habit</button>
       </form>
+      <form action="/logout" method="post">
+        <button type="submit" class="add-button" style="background:#6b7280;">Logout</button>
+      </form>
     </div>
 
     <div class="habit-list">
@@ -161,8 +194,11 @@
       <div class="habit-card">
         <div class="habit-info">
           <div class="habit-name">{{.Name}}</div>
-          <div class="streak">Current streak: {{.Streak}} days</div>
-        </div>
+          <div class="habit-streak">
+          <span class="streak-fire">🔥</span>
+          <span>Streak: {{.Streak}} days</span>
+        </div>       
+      </div>getHabitB
         <div style="display: flex; gap: 8px;">
           <a class="open-button" href="/habit?id={{.ID}}">Open</a>
           <form action="/habit/delete?id={{.ID}}" method="post" onsubmit="return confirm('Delete habit {{.Name}}? All progress will be lost.');">
@@ -174,4 +210,18 @@
     </div>
   </div>
 </body>
+<script>
+  document.querySelectorAll('.habit-card').forEach(card => {
+    const streakText = card.querySelector('.habit-streak');
+    if (!streakText) return;
+    const match = streakText.innerText.match(/\d+/);
+    const streak = match ? parseInt(match[0]) : 0;
+    const fireSpan = streakText.querySelector('.streak-fire');
+    let flames = 1;
+    if (streak >= 100) flames = 5;
+    else if (streak >= 30) flames = 3;
+    else if (streak >= 7) flames = 2;
+    fireSpan.innerHTML = '🔥'.repeat(flames);
+  });
+</script>
 </html>

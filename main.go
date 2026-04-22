@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"html/template"
@@ -10,8 +13,12 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	_ "modernc.org/sqlite"
 )
 
@@ -42,6 +49,35 @@ var (
 )
 
 var logger *slog.Logger
+
+var (
+	oauthConfig  *oauth2.Config
+	sessionStore = struct {
+		sync.RWMutex
+		data map[string]int64
+	}{data: make(map[string]int64)}
+)
+
+func initOAuth() {
+	clientID := os.Getenv("GOOGLE_CLIENT_ID")
+	clientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
+	if clientID == "" || clientSecret == "" {
+		log.Fatal("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set")
+	}
+	oauthConfig = &oauth2.Config{
+		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+		RedirectURL:  "http://localhost:8080/auth/google/callback",
+		Scopes:       []string{"https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"},
+		Endpoint:     google.Endpoint,
+	}
+}
+
+func generateStateCookie() string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	return base64.URLEncoding.EncodeToString(b)
+}
 
 func init() {
 	hanler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
@@ -93,12 +129,17 @@ func main() {
 		"templates/habits.html",
 		"templates/habit.html",
 	))
+	initOAuth()
 
-	http.HandleFunc("/", loggingMiddleware(homeHandler))
-	http.HandleFunc("/habit", loggingMiddleware(habitHandler))
-	http.HandleFunc("/habit/create", loggingMiddleware(createHabitHandler))
-	http.HandleFunc("/habit/toggle", loggingMiddleware(toggleTodayHandler))
-	http.HandleFunc("/habit/delete", loggingMiddleware(deleteHabitHandler))
+	http.HandleFunc("/", authMiddleware(homeHandler))
+	http.HandleFunc("/habit", authMiddleware(habitHandler))
+	http.HandleFunc("/habit/create", authMiddleware(createHabitHandler))
+	http.HandleFunc("/habit/toggle", authMiddleware(toggleTodayHandler))
+	http.HandleFunc("/habit/delete", authMiddleware(deleteHabitHandler))
+	http.HandleFunc("/login", loginHandler)
+	http.HandleFunc("/auth/google/callback", googleCallbackHandler)
+	http.HandleFunc("/logout", logoutHandler)
+
 	log.Println("Server started on localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
@@ -109,10 +150,20 @@ func initDB() error {
 	}
 
 	_, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS users(
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		google_sub TEXT UNIQUE NOT NULL,
+		email TEXT NOT NULL,
+		name TEXT,
+		created_at TEXT NOT NULL
+		);
+
 		CREATE TABLE IF NOT EXISTS habits (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER NOT NULL,
 			name TEXT NOT NULL,
-			created_at TEXT NOT NULL
+			created_at TEXT NOT NULL,
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 		);
 
 		CREATE TABLE IF NOT EXISTS habit_checks (
@@ -133,7 +184,8 @@ func initDB() error {
 }
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
-	habits, err := listHabits()
+	userID := r.Context().Value("userID").(int64)
+	habits, err := listHabits(userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -153,7 +205,8 @@ func habitHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	habit, err := getHabitByID(id)
+	userID := r.Context().Value("userID").(int64)
+	habit, err := getHabitByID(id, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.NotFound(w, r)
@@ -193,10 +246,10 @@ func createHabitHandler(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
+	userID := r.Context().Value("userID").(int64)
 	_, err := db.Exec(
-		`INSERT INTO habits (name, created_at) VALUES (?, ?)`,
-		name,
-		time.Now().Format(time.RFC3339),
+		`INSERT INTO habits (user_id, name, created_at) VALUES (?, ?, ?)`,
+		userID, name, time.Now().Format(time.RFC3339),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -230,38 +283,41 @@ func toggleTodayHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid format of date", http.StatusBadRequest)
 	}
 
+	userID := r.Context().Value("userID").(int64)
+
+	var ownerID int64
+	err = db.QueryRow(`SELECT user_id FROM habits WHERE id = ?`, id).Scan(&ownerID)
+	if err != nil || ownerID != userID {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
 	var exists int
 	err = db.QueryRow(
 		`SELECT 1 FROM habit_checks WHERE habit_id = ? AND day = ?`,
 		id, date,
 	).Scan(&exists)
 
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	var done bool
+	if errors.Is(err, sql.ErrNoRows) {
+		_, err = db.Exec(`INSERT INTO habit_checks (habit_id, day, checked_at) VALUES (?, ?, ?)`,
+			id, date, time.Now().Format(time.RFC3339))
+		done = true
+		logger.Info("habit checked", "habit_id", id, "day", date)
+	} else if err == nil {
+		_, err = db.Exec(`DELETE FROM habit_checks WHERE habit_id = ? AND day = ?`, id, date)
+		logger.Info("habit unchecked", "habit_id", id, "day", date)
+	} else {
 		logger.Error("toggle check query failed", "habit_id", id, "date", date, "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	var done bool
-	if errors.Is(err, sql.ErrNoRows) {
-		_, err = db.Exec(
-			`INSERT INTO habit_checks (habit_id, day, checked_at) VALUES (?, ?, ?)`,
-			id, date, time.Now().Format(time.RFC3339),
-		)
-		done = true
-		logger.Info("habit checked", "habit_id", id, "day", date)
-	} else {
-		_, err = db.Exec(
-			`DELETE FROM habit_checks WHERE habit_id = ? AND day = ?`,
-			id, date,
-		)
-		logger.Info("habit checked", "habit_id", id, "day", date)
-
-	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	checks, err := getHabitChecks(id)
 	if err != nil {
 		logger.Error("failed to get checks")
@@ -276,14 +332,13 @@ func toggleTodayHandler(w http.ResponseWriter, r *http.Request) {
 		"done":    done,
 		"streak":  streak,
 	})
+	return
 
 	// http.Redirect(w, r, "/habit?id="+strconv.FormatInt(id, 10), http.StatusSeeOther)
 }
 
-func listHabits() ([]Habit, error) {
-	rows, err := db.Query(
-		`SELECT id, name, created_at FROM habits ORDER BY id DESC`,
-	)
+func listHabits(userID int64) ([]Habit, error) {
+	rows, err := db.Query(`SELECT id, name, created_at FROM habits WHERE user_id = ? ORDER BY id DESC`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -358,11 +413,12 @@ func buildDays(checks map[string]bool) []Day {
 	return days
 }
 
-func getHabitByID(id int64) (Habit, error) {
+func getHabitByID(id, userID int64) (Habit, error) {
 	var h Habit
 	err := db.QueryRow(
-		`SELECT id, name, created_at FROM habits WHERE id = ?`,
-		id,
+		`SELECT id, name, created_at FROM habits WHERE id = ? AND user_id = ?`,
+
+		id, userID,
 	).Scan(&h.ID, &h.Name, &h.CreatedAt)
 
 	return h, err
@@ -381,7 +437,8 @@ func deleteHabitHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := db.Exec(`DELETE FROM habits WHERE id = ?`, id)
+	userID := r.Context().Value("userID").(int64)
+	result, err := db.Exec(`DELETE FROM habits WHERE id = ? AND user_id = ?`, id, userID)
 	if err != nil {
 		logger.Error("failed to delete habit", "id", id, "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -398,4 +455,124 @@ func deleteHabitHandler(w http.ResponseWriter, r *http.Request) {
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 
+}
+
+func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("session_id")
+		if err != nil || cookie.Value == "" {
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+		sessionStore.RLock()
+		userID, ok := sessionStore.data[cookie.Value]
+		sessionStore.RUnlock()
+
+		if !ok || userID == 0 {
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), "userID", userID)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	}
+}
+
+func loginHandler(w http.ResponseWriter, r *http.Request) {
+	state := generateStateCookie()
+	http.SetCookie(w, &http.Cookie{
+		Name:     "oauth_state",
+		Value:    state,
+		HttpOnly: true,
+		MaxAge:   60 * 10,
+	})
+	url := oauthConfig.AuthCodeURL(state)
+	http.Redirect(w, r, url, http.StatusFound)
+}
+
+func googleCallbackHandler(w http.ResponseWriter, r *http.Request) {
+	state := r.URL.Query().Get("state")
+	cookieState, _ := r.Cookie("oauth_state")
+	if cookieState == nil || cookieState.Value != state {
+		http.Error(w, "invalid state", http.StatusBadRequest)
+		return
+	}
+
+	code := r.URL.Query().Get("code")
+	token, err := oauthConfig.Exchange(r.Context(), code)
+	if err != nil {
+		http.Error(w, "token exchange failed", http.StatusInternalServerError)
+		return
+	}
+	client := oauthConfig.Client(r.Context(), token)
+	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
+	if err != nil {
+		http.Error(w, "user info failed", http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	var userInfo struct {
+		ID    string `json:"id"`
+		Email string `json:"email"`
+		Name  string `json:"name"`
+	}
+	json.NewDecoder(resp.Body).Decode(&userInfo)
+
+	userID, err := findOrCreateUser(userInfo.ID, userInfo.Email, userInfo.Name)
+	if err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+	sessionID := uuid.New().String()
+	sessionStore.Lock()
+	sessionStore.data[sessionID] = userID
+	sessionStore.Unlock()
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_id",
+		Value:    sessionID,
+		HttpOnly: true,
+		Path:     "/",
+		MaxAge:   86400 * 7,
+	})
+	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+func logoutHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	cookie, err := r.Cookie("session_id")
+	if err == nil && cookie.Value != "" {
+		sessionStore.Lock()
+		delete(sessionStore.data, cookie.Value)
+		sessionStore.Unlock()
+
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:   "session_id",
+		Value:  "",
+		Path:   "/",
+		MaxAge: -1,
+	})
+	http.Redirect(w, r, "/login", http.StatusFound)
+
+}
+
+func findOrCreateUser(googleSub, email, name string) (int64, error) {
+	var userID int64
+	err := db.QueryRow(`SELECT id FROM users WHERE google_sub = ?`, googleSub).Scan(&userID)
+	if err == nil {
+		return userID, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return 0, err
+	}
+	res, err := db.Exec(`INSERT INTO users (google_sub, email, name, created_at) VALUES (?, ?, ?, ?)`,
+		googleSub, email, name, time.Now().Format(time.RFC3339))
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
 }
