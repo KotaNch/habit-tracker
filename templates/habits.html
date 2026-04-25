@@ -173,44 +173,45 @@
     .mark-btn:active {
     transform: scale(0.96);
     }
-  </style>
-</head>
+  </style>  
+</head> 
 <body>
   <div class="container">
     <div class="header">
-      <h1>My Habits</h1>
-
+      <h1>{{ .Locale.app_title }}</h1>
       <form class="add-form" action="/habit/create" method="post">
-        <input class="add-input" name="name" placeholder="New habit name" required />
-        <button class="add-button" type="submit">Add habit</button>
-      </form>
+        <input placeholder="{{ .Locale.new_habit_placeholder}}">
+        <button>{{ .Locale.add_habit }}</button></form>
       <form action="/logout" method="post">
-        <button type="submit" class="add-button" style="background:#6b7280;">Logout</button>
+        <button type="submit" class="add-button" style="background:#6b7280;">{{ .Locale.logout }}</button>
       </form>
+      <div style="display: inline-flex; gap: 8px; margin-left: auto;">
+        <a href="?lang=en" style="color:white; text-decoration:none;">EN</a>
+        <a href="?lang=ru" style="color:white; text-decoration:none;">RU</a>
+      </div>
     </div>
 
-    <div class="habit-list">
+    <div class="habit-list"> 
       {{range .Habits}}
       <div class="habit-card">
         <div class="habit-info">
           <div class="habit-name">{{.Name}}</div>
           <div class="habit-streak">
           <span class="streak-fire">🔥</span>
-          <span>Streak: {{.Streak}} days</span>
+          <span>{{ $.Locale.streak }}{{.Streak}} {{ $.Locale.days }}</span>
         </div>       
-      </div>getHabitB
+      </div>
         <div style="display: flex; gap: 8px;">
-          <a class="open-button" href="/habit?id={{.ID}}">Open</a>
-          <form action="/habit/delete?id={{.ID}}" method="post" onsubmit="return confirm('Delete habit {{.Name}}? All progress will be lost.');">
-            <button class="delete-button" type="submit">Delete</button>
+          <a class="open-button" href="/habit?id={{.ID}}">{{ $.Locale.open }}</a>
+       <form action="/habit/delete?id={{.ID}}" method="post" onsubmit="return confirm('{{ $.Locale.confirm_delete }}');">    <button class="delete-button" type="submit">{{ $.Locale.delete }}</button>
           </form>
         </div>
       </div>
-      {{end}}
+      {{end}}      
     </div>
-  </div>
+  </div>  
 </body>
-<script>
+<script>      
   document.querySelectorAll('.habit-card').forEach(card => {
     const streakText = card.querySelector('.habit-streak');
     if (!streakText) return;

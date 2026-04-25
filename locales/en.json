@@ -1,0 +1,16 @@
+{
+    "app_title": "My Habits",
+    "add_habit": "Add habit",
+    "new_habit_placeholder": "New habit name",
+    "current_streak": "Current streak: {{.Streak}} days",
+    "open": "Open",
+    "delete": "Delete",
+    "confirm_delete": "Delete habit ? All progress will be lost.",
+    "back": "Back",
+    "mark_today": "Mark today",
+    "delete_habit": "Delete habit",
+    "streak": "Current streak: {{.Streak}} days",
+    "click_to_toggle": "Click on any day to mark/unmurk.",
+    "days_ago_legend": "Last 365 days"
+}
+

@@ -1,3 +1,4 @@
 # /habit.db
 *.db
 *.env
+habit

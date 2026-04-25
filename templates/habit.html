@@ -25,15 +25,15 @@
     .cell:hover { filter: brightness(1.2); }
     .legend { margin-top: 16px; color: #9ca3af; font-size: 13px; }
     @media (max-width: 600px) { body { padding: 16px; } .habit-title { font-size: 28px; } }
-    @keyframes flame{
+    @keyframes flame{                     
       0% {text-shadow: 0 0 2px #ff9900, 0 0 4px #ff5500; opacity:0.8;}
       50% {text-shadow: 0 0 8px #ff6600, 0 0 12px #ff3300; opacity:1;}
       100% {text-shadow: 0 0 2px #ff9900, 0 0 4px #ff5500; opacity:0.8;}
     }
     .streak{
-      font-size: 18px;
+      font-size: 18px;  
       font-weight: 600;
-      display: inline-flex;
+      display: inline-flex;     
       align-items: center;
       gap: 8px;
       background: #1e1f25;
@@ -49,7 +49,7 @@
     }
     .streak-flame{
       font-size: 22px;
-      animation: flame ls infinite;
+      animation: flame 1s infinite;
       display: inline-block;
     }
 
@@ -76,11 +76,11 @@
 <body>
   <div class="container">
     <div class="topbar">
-      <a class="back-btn" href="/">Back</a>
+      <a class="back-btn" href="/">{{ .Locale.back }}</a>
       <div style="display: flex; gap: 12px;">
-        <button class="mark-btn" id="mark-today-btn">Mark today</button>
+        <button class="mark-btn" id="mark-today-btn">{{ .Locale.mark_today }}</button>
         <form action="/habit/delete?id={{.Habit.ID}}" method="post" onsubmit="return confirm('Delete habit {{.Habit.Name}}? All progress will be lost.');">
-          <button class="delete-btn" type="submit">Delete habit</button>
+          <button class="delete-btn" type="submit">{{ .Locale.delete_habit }}</button>
         </form>
       </div>
     </div>
@@ -88,9 +88,9 @@
     <h1 class="habit-title">{{.Habit.Name}}</h1>
     <div class="streak" id="streak-container">
   <span class="streak-flame" id="streak-flame">🔥</span>
-  <span>Current streak:</span>
+  <span>{{ .Locale.streak_label }}</span>
   <span class="streak-value" id="streak-value">{{.Habit.Streak}}</span>
-  <span>days</span>
+  <span>{{ .Locale.days }}</span>
 </div>
     <div class="panel">
       <div class="heatmap" id="heatmap">
@@ -98,7 +98,7 @@
           <div class="cell {{if .Done}}done{{end}}" data-date="{{.Date}}" title="{{.Date}}"></div>
         {{end}}
       </div>
-      <div class="legend">Click on any day to mark/unmark.</div>
+      <div class="legend">{{ .Locale.click_to_toggle }}</div>
     </div>
   </div>
 

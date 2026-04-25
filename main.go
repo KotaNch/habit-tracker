@@ -7,12 +7,16 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,11 +40,13 @@ type Day struct {
 
 type HomePageData struct {
 	Habits []Habit
+	Locale map[string]string
 }
 
 type HabitPageData struct {
-	Habit Habit
-	Days  []Day
+	Habit  Habit
+	Days   []Day
+	Locale map[string]string
 }
 
 var (
@@ -124,6 +130,9 @@ func main() {
 	if err := initDB(); err != nil {
 		log.Fatal(err)
 	}
+	if err := loadTranslations(); err != nil {
+		log.Fatal(err)
+	}
 
 	tpl = template.Must(template.ParseFiles(
 		"templates/habits.html",
@@ -131,14 +140,14 @@ func main() {
 	))
 	initOAuth()
 
-	http.HandleFunc("/", authMiddleware(homeHandler))
-	http.HandleFunc("/habit", authMiddleware(habitHandler))
-	http.HandleFunc("/habit/create", authMiddleware(createHabitHandler))
-	http.HandleFunc("/habit/toggle", authMiddleware(toggleTodayHandler))
-	http.HandleFunc("/habit/delete", authMiddleware(deleteHabitHandler))
-	http.HandleFunc("/login", loginHandler)
-	http.HandleFunc("/auth/google/callback", googleCallbackHandler)
-	http.HandleFunc("/logout", logoutHandler)
+	http.HandleFunc("/", languageMiddleware(authMiddleware(homeHandler)))
+	http.HandleFunc("/habit", languageMiddleware(authMiddleware(habitHandler)))
+	http.HandleFunc("/habit/create", languageMiddleware(authMiddleware(createHabitHandler)))
+	http.HandleFunc("/habit/toggle", languageMiddleware(authMiddleware(toggleTodayHandler)))
+	http.HandleFunc("/habit/delete", languageMiddleware(authMiddleware(deleteHabitHandler)))
+	http.HandleFunc("/login", languageMiddleware(loginHandler))
+	http.HandleFunc("/auth/google/callback", languageMiddleware(googleCallbackHandler))
+	http.HandleFunc("/logout", languageMiddleware(logoutHandler))
 
 	log.Println("Server started on localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
@@ -185,13 +194,14 @@ func initDB() error {
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value("userID").(int64)
+	lang := r.Context().Value("lang").(string)
 	habits, err := listHabits(userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	data := HomePageData{Habits: habits}
+	data := HomePageData{Habits: habits, Locale: translations[lang]}
 
 	if err := tpl.ExecuteTemplate(w, "habits.html", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -221,12 +231,14 @@ func habitHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	lang := r.Context().Value("lang").(string)
 
 	habit.Streak = calcStreak(checks)
 
 	data := HabitPageData{
-		Habit: habit,
-		Days:  buildDays(checks),
+		Habit:  habit,
+		Days:   buildDays(checks),
+		Locale: translations[lang],
 	}
 
 	if err := tpl.ExecuteTemplate(w, "habit.html", data); err != nil {
@@ -281,6 +293,7 @@ func toggleTodayHandler(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := time.Parse("2006-01-02", date); err != nil {
 		http.Error(w, "Invalid format of date", http.StatusBadRequest)
+		return
 	}
 
 	userID := r.Context().Value("userID").(int64)
@@ -322,6 +335,7 @@ func toggleTodayHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger.Error("failed to get checks")
 		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
 	}
 
 	streak := calcStreak(checks)
@@ -575,4 +589,63 @@ func findOrCreateUser(googleSub, email, name string) (int64, error) {
 		return 0, err
 	}
 	return res.LastInsertId()
+}
+
+type Locale map[string]string
+
+var translations map[string]Locale
+
+func loadTranslations() error {
+	translations = make(map[string]Locale)
+	files, err := filepath.Glob("locales/*.json")
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		lang := strings.TrimSuffix(filepath.Base(f), ".json")
+		data, err := ioutil.ReadFile(f)
+		if err != nil {
+			return err
+		}
+
+		var loc Locale
+		if err := json.Unmarshal(data, &loc); err != nil {
+			return err
+		}
+		translations[lang] = loc
+	}
+	return nil
+}
+
+func T(lang, key string, data map[string]interface{}) string {
+	if loc, ok := translations[lang]; ok {
+		tpl := loc[key]
+		for k, v := range data {
+			tpl = strings.ReplaceAll(tpl, "{{."+k+"}}", fmt.Sprintf("%v", v))
+		}
+		return tpl
+	}
+	return key
+}
+
+func languageMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		lang := r.URL.Query().Get("lang")
+		if lang == "" {
+			cookie, err := r.Cookie("lang")
+			if err == nil && (cookie.Value == "ru" || cookie.Value == "en") {
+				lang = cookie.Value
+			} else {
+				lang = "en"
+			}
+		}
+		http.SetCookie(w, &http.Cookie{
+			Name:   "lang",
+			Value:  lang,
+			Path:   "/",
+			MaxAge: 86400 * 365,
+		})
+		ctx := context.WithValue(r.Context(), "lang", lang)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	}
 }
