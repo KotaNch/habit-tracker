@@ -180,15 +180,15 @@
     <div class="header">
       <h1>{{ .Locale.app_title }}</h1>
       <form class="add-form" action="/habit/create" method="post">
-        <input placeholder="{{ .Locale.new_habit_placeholder}}">
-        <button>{{ .Locale.add_habit }}</button></form>
+        <input name="name" class="add-input" placeholder="{{ .Locale.new_habit_placeholder}}" required>
+        <button class="add-button" type="submit">{{ .Locale.add_habit }}</button></form>
       <form action="/logout" method="post">
         <button type="submit" class="add-button" style="background:#6b7280;">{{ .Locale.logout }}</button>
       </form>
       <div style="display: inline-flex; gap: 8px; margin-left: auto;">
         <a href="?lang=en" style="color:white; text-decoration:none;">EN</a>
         <a href="?lang=ru" style="color:white; text-decoration:none;">RU</a>
-      </div>
+      </div>  
     </div>
 
     <div class="habit-list"> 
@@ -210,7 +210,7 @@
       {{end}}      
     </div>
   </div>  
-</body>
+</body>  
 <script>      
   document.querySelectorAll('.habit-card').forEach(card => {
     const streakText = card.querySelector('.habit-streak');

@@ -9,8 +9,12 @@
     "back": "Back",
     "mark_today": "Mark today",
     "delete_habit": "Delete habit",
-    "streak": "Current streak: {{.Streak}} days",
-    "click_to_toggle": "Click on any day to mark/unmurk.",
-    "days_ago_legend": "Last 365 days"
+    
+    "click_to_toggle": "Click on any day to mark/unmurk.",   
+    "days_ago_legend": "Last 365 days",
+    "streak_label": "Current streak:",
+    "logout": "Logout",
+    "days": "days"
 }
 
+ 
