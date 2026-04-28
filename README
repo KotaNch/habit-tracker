@@ -1,9 +1,9 @@
-# Habit Tracker
+#Habit Tracker
 
 A simple web app for tracking habits.  
 You can add habits, mark days as done, and see your streak.
 
-## Tech Stack
+##Tech Stack
 
 - **Frontend:** HTML, CSS, JavaScript
 - **Backend:** Go
@@ -11,7 +11,7 @@ You can add habits, mark days as done, and see your streak.
 - **Authentication:** Google OAuth
 - **Templates:** Go HTML templates
 
-## Environment Variables
+##Environment Variables
 
 Before running the project, create a `.env` file or set these variables in your system:
 
@@ -21,8 +21,8 @@ GOOGLE_CLIENT_SECRET=your_google_client_secret
 
 
 
-## Installation
-### 1. Clone the repository
+##Installation
+###1. Clone the repository
 ```bash
 git clone https://github.com/your-username/habit-tracker.git
 cd habit-tracker
