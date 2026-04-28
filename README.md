@@ -1,5 +1,7 @@
 # Habit tracker
 
+Try it: https://habit-tracker.ddns.net/
+
 A simple web app for tracking habits.  
 You can add habits, mark days as done, and see your streak.
 
@@ -53,3 +55,8 @@ http://localhost:8080
 P.S.
 
 I will soon add this project to my VPS, making it more convenient to use.
+
+
+P.S.S.
+
+I did it... you can use it: https://habit-tracker.ddns.net/
