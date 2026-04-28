@@ -1,4 +1,4 @@
-# Habit Tracker
+# Habit tracker
 
 A simple web app for tracking habits.  
 You can add habits, mark days as done, and see your streak.
@@ -18,24 +18,32 @@ Before running the project, create a `.env` file or set these variables in your 
 ```bash
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
+```
 Installation
-1. Clone the repository
+
+### 1. Clone the repository
+```
 git clone https://github.com/your-username/habit-tracker.git
 cd habit-tracker
-2. Install dependencies
+```
+### 2. Install dependencies
 
 Make sure you have Go installed, then run:
-
+```
 go mod tidy
-3. Set up environment variables
+```
+### 3. Set up environment variables
 
 Add your Google OAuth credentials:
-
+```
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
-4. Run the project
+```
+### 4. Run the project
+```
 go run main.go
-5. Open in browser
+```
+### 5. Open in browser
 
 Open:
 
