@@ -167,9 +167,10 @@
         cell.addEventListener('click', (e) => {
             const date = cell.getAttribute('data-date');
             toggleDay(date, cell);
-        });
-    });
-
+        }); 
+    });                
+    
+  
     const todayBtn = document.getElementById('mark-today-btn');
     if (todayBtn) {
         todayBtn.addEventListener('click', () => {
